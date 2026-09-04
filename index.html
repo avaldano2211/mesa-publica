@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mesa Pública</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mesa">
+<meta name="theme-color" content="#0a0a12">
+<style>
+:root{--bg:#0a0a12;--card:#12121d;--line:#23233a;--tx:#e8e8f2;--tx2:#9a9ab0;--tx3:#62627a;
+--verde:#34d399;--rojo:#f87171;--ambar:#fbbf24;--azul:#60a5fa;--acento:#f0b429}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;
+padding-bottom:env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);
+position:sticky;top:0;background:var(--bg);z-index:5}
+header b{font-size:16px;letter-spacing:.3px}
+main{max-width:880px;margin:0 auto;padding:14px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.panel h3{margin:0 0 4px;font-size:14.5px}
+.sub{color:var(--tx2);font-size:12px;margin-bottom:10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.tk{background:#0e0e18;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tk b{font-size:15px}
+.dim{color:var(--tx2)}.dim3{color:var(--tx3)}
+.grn{color:var(--verde)}.red{color:var(--rojo)}.amb{color:var(--ambar)}
+.linea{display:flex;gap:7px;align-items:baseline;margin:3px 0;font-size:12.5px}
+.linea .pt{font-size:9px}
+input,select,button{font:inherit;color:var(--tx);background:#0e0e18;border:1px solid var(--line);
+border-radius:8px;padding:8px 10px}
+input:focus,select:focus{outline:1px solid var(--azul)}
+button{cursor:pointer}
+.btn-a{background:var(--acento);color:#111;border:none;font-weight:700}
+.btn-v{background:#173326;border-color:#1e5a3a;color:var(--verde)}
+.btn-r{background:#331a1a;border-color:#5a2222;color:var(--rojo)}
+.btn-sm{padding:4px 9px;font-size:12px;border-radius:7px}
+.fila{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.fila label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--tx2)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{color:var(--tx3);text-align:left;font-weight:600;font-size:11px;padding:4px 6px;border-bottom:1px solid var(--line)}
+td{padding:6px;border-bottom:1px solid #1a1a2c}
+.centro{max-width:380px;margin:12vh auto;padding:0 16px}
+.centro .panel{padding:22px}
+.centro input{width:100%;margin-bottom:10px;font-size:16px}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--tx2)}
+.badge.viejo{color:var(--ambar);border-color:#4a3a10}
+footer{color:var(--tx3);font-size:11px;text-align:center;padding:18px 16px 26px;line-height:1.6}
+.oculto{display:none!important}
+#msg{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:#1c1c2e;border:1px solid var(--line);
+padding:10px 16px;border-radius:10px;font-size:13px;z-index:20;max-width:88vw}
+@media(max-width:560px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="vista-login" class="centro oculto">
+  <div style="text-align:center;font-size:38px;margin-bottom:6px">🐟</div>
+  <div class="panel">
+    <h3 style="text-align:center;margin-bottom:14px">Mesa Pública</h3>
+    <input id="lg-email" type="email" placeholder="correo" autocomplete="username" autocapitalize="none">
+    <input id="lg-pass" type="password" placeholder="contraseña" autocomplete="current-password">
+    <button class="btn-a" id="lg-entrar" style="width:100%">Entrar</button>
+    <button id="lg-crear" style="width:100%;margin-top:8px">Crear mi cuenta</button>
+    <div class="dim3" style="font-size:11px;margin-top:12px;text-align:center">
+      Solo por invitación: tu correo debe estar en la lista de invitados.<br>Tu contraseña la eliges tú y nadie más la conoce.</div>
+  </div>
+</div>
+
+<div id="vista-app" class="oculto">
+<header>
+  <b>🐟 Mesa Pública</b>
+  <span class="badge" id="hd-mercado">mercado —</span>
+  <span style="margin-left:auto" class="dim3" id="hd-quien"></span>
+  <button class="btn-sm" id="hd-salir">salir</button>
+</header>
+<main>
+
+  <div class="panel oculto" id="p-noinvitado">
+    <h3>⛔ No estás en la lista</h3>
+    <div class="sub">Tu cuenta existe pero tu correo no está invitado todavía. Pide al administrador que te agregue con el MISMO correo con el que te registraste.</div>
+  </div>
+
+  <div id="zona-datos" class="oculto">
+
+  <div class="panel">
+    <h3>El mercado hoy <span class="badge" id="mk-hora">—</span></h3>
+    <div class="sub">análisis del sistema — la noticia mata la estrategia · rango óptimo por día de semana</div>
+    <div id="mk-avisos"></div>
+    <div class="grid" id="mk-tickers" style="margin-top:8px"></div>
+    <div id="mk-bloque" style="margin-top:10px"></div>
+    <div id="mk-senales" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Mi plan</h3>
+    <div class="sub">lo que pase del plan se retira — la disciplina ES el sistema</div>
+    <div class="fila">
+      <label>Plan %<input id="pl-pct" type="number" min="1" max="200" style="width:70px"></label>
+      <label>Ops/semana<input id="pl-ops" type="number" min="1" max="20" style="width:70px"></label>
+      <label>% capital por op<input id="pl-riesgo" type="number" min="1" max="100" style="width:70px"></label>
+      <label>Capital $<input id="pl-capital" type="number" min="0" step="100" style="width:100px" placeholder="opcional"></label>
+      <button class="btn-a btn-sm" id="pl-guardar">Guardar</button>
+    </div>
+    <div id="pl-resumen" style="margin-top:10px;font-size:13px"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Mis operaciones</h3>
+    <div class="sub">cada quien registra y ejecuta en su propio bróker — aquí se lleva la disciplina</div>
+    <div class="fila">
+      <label>Ticker<input id="op-ticker" style="width:76px" placeholder="SPY" autocapitalize="characters"></label>
+      <label>Tipo<select id="op-tipo"><option>CALL</option><option>PUT</option></select></label>
+      <label>Strike<input id="op-strike" type="number" step="0.5" style="width:84px"></label>
+      <label>Expira<input id="op-exp" type="date" style="width:140px"></label>
+      <label>Contratos<input id="op-qty" type="number" min="1" value="1" style="width:70px"></label>
+      <label>Prima ($/acción)<input id="op-prima" type="number" step="0.01" style="width:96px" placeholder="0.38"></label>
+      <button class="btn-v btn-sm" id="op-alta">Registrar compra</button>
+    </div>
+    <div class="dim3" id="op-gtc" style="font-size:11.5px;margin-top:6px"></div>
+    <div style="overflow-x:auto;margin-top:10px"><table id="op-tabla"></table></div>
+  </div>
+
+  <div class="panel oculto" id="p-admin">
+    <h3>Invitados <span class="dim3" style="font-size:11px">(solo tú ves esto)</span></h3>
+    <div class="fila">
+      <input id="ad-email" type="email" placeholder="correo del amigo" style="min-width:230px" autocapitalize="none">
+      <button class="btn-a btn-sm" id="ad-agregar">Invitar</button>
+    </div>
+    <div id="ad-lista" style="margin-top:10px;font-size:12.5px"></div>
+  </div>
+
+  </div>
+</main>
+<footer>
+  Herramienta educativa privada entre amigos · NO es recomendación de inversión ni asesoría financiera.<br>
+  Aquí no se ejecutan órdenes ni se guardan credenciales de ningún bróker. Operar opciones conlleva riesgo de perderlo todo.
+</footer>
+</div>
+
+<div id="msg" class="oculto"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+/* ── configuración (la llena el despliegue) ── */
+const SUPABASE_URL = "__SUPABASE_URL__";
+const SUPABASE_KEY = "__SUPABASE_KEY__";
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const NIV = {ok:"var(--verde)", aviso:"var(--ambar)", alto:"var(--rojo)"};
+let sb = null, usuario = null, plan = {plan_pct:35, ops_max:3, riesgo_pct:10, capital:null}, esAdmin = false;
+
+function aviso(t){ const m=$("msg"); m.textContent=t; m.classList.remove("oculto");
+  clearTimeout(aviso._t); aviso._t=setTimeout(()=>m.classList.add("oculto"), 3500); }
+function linea(c){ return `<div class="linea"><span class="pt" style="color:${NIV[c.nivel]||"var(--tx3)"}">●</span>
+  <span${c.nivel==="alto"?' style="color:var(--rojo);font-weight:600"':""}>${esc(c.texto)}</span></div>`; }
+function tend(t){ if(t==="alcista")return '<span class="grn">↑ alcista</span>';
+  if(t==="bajista")return '<span class="red">↓ bajista</span>';
+  if(t==="lateral")return '<span class="dim">→ lateral</span>'; return '<span class="dim3">—</span>'; }
+function lunesDe(d){ const x=new Date(d); const dia=(x.getDay()+6)%7; x.setDate(x.getDate()-dia); return x.toISOString().slice(0,10); }
+
+/* ── arranque ── */
+async function init(){
+  if (SUPABASE_URL.startsWith("__")){ document.body.innerHTML =
+    "<div class='centro'><div class='panel'>App sin configurar (faltan las claves del despliegue).</div></div>"; return; }
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  const {data:{session}} = await sb.auth.getSession();
+  session ? entrar(session.user) : mostrarLogin();
+  sb.auth.onAuthStateChange((_e, s)=>{ if(!s && usuario){ location.reload(); } });
+}
+function mostrarLogin(){
+  $("vista-login").classList.remove("oculto"); $("vista-app").classList.add("oculto");
+  $("lg-entrar").onclick = accederLogin; $("lg-crear").onclick = crearCuenta;
+  $("lg-pass").addEventListener("keydown", e=>{ if(e.key==="Enter") accederLogin(); });
+}
+async function accederLogin(){
+  const {error} = await sb.auth.signInWithPassword({email:$("lg-email").value.trim(), password:$("lg-pass").value});
+  if (error) return aviso("No se pudo entrar: " + error.message);
+  const {data:{user}} = await sb.auth.getUser(); entrar(user);
+}
+async function crearCuenta(){
+  const email=$("lg-email").value.trim(), password=$("lg-pass").value;
+  if (!email || password.length < 8) return aviso("Escribe tu correo y una contraseña de 8+ caracteres.");
+  const {error} = await sb.auth.signUp({email, password});
+  if (error) return aviso("No se pudo crear: " + error.message);
+  const {error:e2} = await sb.auth.signInWithPassword({email, password});
+  if (e2) return aviso("Cuenta creada. " + e2.message);
+  const {data:{user}} = await sb.auth.getUser(); entrar(user);
+}
+async function entrar(u){
+  usuario = u;
+  $("vista-login").classList.add("oculto"); $("vista-app").classList.remove("oculto");
+  $("hd-quien").textContent = u.email; $("hd-salir").onclick = ()=> sb.auth.signOut();
+  const {data:permitido} = await sb.rpc("es_permitido");
+  if (!permitido){ $("p-noinvitado").classList.remove("oculto"); return; }
+  $("zona-datos").classList.remove("oculto");
+  const {data:admin} = await sb.rpc("es_admin"); esAdmin = !!admin;
+  if (esAdmin){ $("p-admin").classList.remove("oculto"); $("ad-agregar").onclick=invitar; cargarInvitados(); }
+  await sb.from("perfiles").upsert({user_id:u.id, email:u.email}, {onConflict:"user_id"});
+  $("pl-guardar").onclick = guardarPlan;
+  $("op-alta").onclick = altaOperacion;
+  $("op-prima").addEventListener("input", pintaGTC);
+  await Promise.all([cargarPlan(), cargarMercado(), cargarOperaciones()]);
+  setInterval(cargarMercado, 120000);
+}
+
+/* ── mercado compartido ── */
+async function cargarMercado(){
+  const {data, error} = await sb.from("mercado_actual").select("ts,payload").eq("id",1).maybeSingle();
+  if (error || !data){ $("mk-avisos").innerHTML = '<span class="dim3">todavía no hay datos publicados</span>'; return; }
+  const p = data.payload || {}; const ts = new Date(data.ts);
+  const mins = Math.round((Date.now()-ts.getTime())/60000);
+  $("mk-hora").textContent = "actualizado " + ts.toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
+  const hd=$("hd-mercado"); hd.textContent = mins>45 ? `datos de hace ${mins>120?Math.round(mins/60)+" h":mins+" min"}` : "mercado al día";
+  hd.classList.toggle("viejo", mins>45);
+  $("mk-avisos").innerHTML = (p.avisos_globales||[]).map(linea).join("")
+    || linea({nivel:"ok", texto:"sin noticias que maten la estrategia hoy"});
+  $("mk-tickers").innerHTML = (p.tickers||[]).map(t=>{
+    const rv=t.rango_vivo; let cab="";
+    if (rv){
+      const terc=(rv.hi-rv.lo)/3, d=new Date().getDay();
+      const b = d<=2?[rv.lo,rv.lo+terc] : d===3?[rv.lo+terc,rv.hi-terc] : [rv.hi-terc,rv.hi];
+      cab = `<span class="dim" style="font-size:11.5px">rango vivo $${Math.round(rv.lo)}–$${Math.round(rv.hi)}
+        · hoy $${Math.round(b[0])}–$${Math.round(b[1])}</span>`;
+    }
+    return `<div class="tk"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(t.ticker)}</b>${cab}</div>
+      <div style="font-size:12px;margin-top:4px">15m ${tend(t.tendencias?.m15)} · hora ${tend(t.tendencias?.hora)} · día ${tend(t.tendencias?.dia)}</div>
+      <div class="dim" style="font-size:11.5px;margin-top:2px">volatilidad: <b>${esc(t.volatilidad?.fase||"—")}</b>${t.volatilidad?.rumbo?` (${esc(t.volatilidad.rumbo)})`:""}</div>
+      ${(t.eventos||[]).map(linea).join("")}
+      ${(t.avisos||[]).map(a=>linea({nivel:"aviso",texto:a})).join("")}</div>`;
+  }).join("");
+  const bl=p.bloque;
+  $("mk-bloque").innerHTML = (bl && bl.estados) ?
+    `<div class="dim3" style="font-size:11px;margin-bottom:3px">MOVIMIENTO EN BLOQUE (índices vs su media de 40 en hora)</div>`+
+    Object.entries(bl.estados).map(([s,e])=>`<div class="linea"><b style="width:40px">${esc(s)}</b>
+      <span class="${e.lado==="arriba"?"grn":"red"}">${e.lado==="arriba"?"▲ sobre":"▼ bajo"} su media</span>
+      <span class="dim">${e.dist_pct>0?"+":""}${e.dist_pct}%</span></div>`).join("")
+    + (bl.aviso ? linea({nivel:"aviso", texto:bl.aviso.texto + " — el rezagado suele seguir al grupo"}) : "") : "";
+  $("mk-senales").innerHTML = (p.senales_hoy||[]).length ?
+    `<div class="dim3" style="font-size:11px;margin-bottom:3px">SEÑALES DEL SISTEMA HOY</div>`+
+    p.senales_hoy.map(s=>`<div class="linea"><span class="dim3">${esc(s.hhmm)}</span>
+      <b>${esc(s.titulo)}</b></div><div class="dim" style="font-size:11.5px;margin:0 0 6px 40px">${esc(s.msg)}</div>`).join("") : "";
+}
+
+/* ── plan + semana ── */
+async function cargarPlan(){
+  const {data} = await sb.from("planes").select("*").eq("user_id", usuario.id).maybeSingle();
+  if (data) plan = data;
+  $("pl-pct").value=plan.plan_pct; $("pl-ops").value=plan.ops_max;
+  $("pl-riesgo").value=plan.riesgo_pct; $("pl-capital").value=plan.capital??"";
+  pintaResumen();
+}
+async function guardarPlan(){
+  plan = {user_id:usuario.id, plan_pct:+$("pl-pct").value||35, ops_max:+$("pl-ops").value||3,
+          riesgo_pct:+$("pl-riesgo").value||10, capital:$("pl-capital").value?+$("pl-capital").value:null};
+  const {error} = await sb.from("planes").upsert(plan, {onConflict:"user_id"});
+  error ? aviso("No se guardó: "+error.message) : aviso("Plan guardado.");
+  pintaResumen(); pintaGTC(); cargarOperaciones();
+}
+let opsCache = [];
+function pintaResumen(){
+  const lunes = lunesDe(new Date());
+  const sem = opsCache.filter(o=>o.fecha >= lunes);
+  const cerradas = sem.filter(o=>o.estado==="cerrada" && o.prima_salida!=null);
+  const res = cerradas.reduce((a,o)=>a+(o.prima_salida-o.prima_entrada)*o.contratos*100, 0);
+  const presupuesto = plan.capital ? (plan.capital*plan.riesgo_pct/100) : null;
+  const pasa = sem.length >= plan.ops_max;
+  $("pl-resumen").innerHTML =
+    `Semana: <b class="${pasa?"red":""}">${sem.length} de ${plan.ops_max}</b> operaciones` +
+    (pasa ? ' <span class="red">— plan agotado: el excedente es del casino, no tuyo</span>' : "") +
+    ` · resultado <b class="${res>=0?"grn":"red"}">$${res.toFixed(0)}</b>` +
+    (presupuesto ? ` · presupuesto por operación <b>$${presupuesto.toFixed(0)}</b>` : "");
+}
+
+/* ── operaciones ── */
+function pintaGTC(){
+  const p=+$("op-prima").value;
+  $("op-gtc").textContent = p>0 ? `Al llenarte, pon YA la venta límite GTC a $${(p*(1+plan.plan_pct/100)+0.02).toFixed(2)} (+${plan.plan_pct}% + $0.02) — no cuando llegue.` : "";
+}
+async function altaOperacion(){
+  const o = {user_id:usuario.id, ticker:($("op-ticker").value||"").toUpperCase().trim(),
+    tipo:$("op-tipo").value, strike:+$("op-strike").value||null,
+    expiracion:$("op-exp").value||null, contratos:+$("op-qty").value||1,
+    prima_entrada:+$("op-prima").value};
+  if (!o.ticker || !(o.prima_entrada>0)) return aviso("Ticker y prima son obligatorios.");
+  const {error} = await sb.from("operaciones").insert(o);
+  if (error) return aviso("No se registró: "+error.message);
+  $("op-ticker").value=$("op-strike").value=$("op-prima").value=""; $("op-qty").value=1; $("op-gtc").textContent="";
+  aviso("Operación registrada."); cargarOperaciones();
+}
+async function cerrarOperacion(id, entrada){
+  const v = prompt("¿A qué prima vendiste? ($/acción)");
+  if (v===null) return;
+  const salida = parseFloat(v);
+  if (!(salida>=0)) return aviso("Prima inválida.");
+  const {error} = await sb.from("operaciones").update({prima_salida:salida, estado:"cerrada"}).eq("id", id);
+  error ? aviso("No se cerró: "+error.message) : cargarOperaciones();
+}
+async function borrarOperacion(id){
+  if (!confirm("¿Borrar esta operación del registro?")) return;
+  await sb.from("operaciones").delete().eq("id", id); cargarOperaciones();
+}
+async function cargarOperaciones(){
+  const {data, error} = await sb.from("operaciones").select("*")
+    .order("fecha",{ascending:false}).order("id",{ascending:false}).limit(120);
+  if (error) return;
+  opsCache = data||[]; pintaResumen();
+  const gtc = o => (o.prima_entrada*(1+plan.plan_pct/100)+0.02).toFixed(2);
+  $("op-tabla").innerHTML = `<tr><th>Fecha</th><th>Contrato</th><th>×</th><th>Entrada</th><th>Objetivo</th><th>Salida</th><th>Resultado</th><th></th></tr>` +
+    opsCache.map(o=>{
+      const abierta = o.estado==="abierta";
+      const res = !abierta && o.prima_salida!=null ? (o.prima_salida-o.prima_entrada)*o.contratos*100 : null;
+      const pct = !abierta && o.prima_salida!=null && o.prima_entrada>0 ? (o.prima_salida/o.prima_entrada-1)*100 : null;
+      return `<tr>
+        <td class="dim">${esc(o.fecha)}</td>
+        <td><b>${esc(o.ticker)}</b> ${o.strike??""} ${esc(o.tipo)}${o.expiracion?` <span class="dim3">${esc(o.expiracion)}</span>`:""}</td>
+        <td>${o.contratos}</td>
+        <td>$${(+o.prima_entrada).toFixed(2)}</td>
+        <td class="dim">$${gtc(o)}</td>
+        <td>${abierta?'<span class="amb">abierta</span>':"$"+(+o.prima_salida).toFixed(2)}</td>
+        <td>${res==null?"—":`<b class="${res>=0?"grn":"red"}">$${res.toFixed(0)} (${pct>0?"+":""}${pct.toFixed(0)}%)</b>`}</td>
+        <td style="white-space:nowrap">${abierta?`<button class="btn-sm btn-r" onclick="cerrarOperacion(${o.id})">cerrar</button>`:""}
+          <button class="btn-sm" title="borrar" onclick="borrarOperacion(${o.id})">✕</button></td></tr>`;
+    }).join("");
+}
+
+/* ── admin ── */
+async function cargarInvitados(){
+  const {data} = await sb.from("amigos_permitidos").select("*").order("agregado");
+  $("ad-lista").innerHTML = (data||[]).filter(a=>!a.email.endsWith("@mesa-publica.local"))
+    .map(a=>`<div class="linea"><span class="pt" style="color:var(--verde)">●</span>${esc(a.email)}
+      ${a.es_admin?'<span class="badge">admin</span>':""}
+      ${!a.es_admin?`<button class="btn-sm" style="margin-left:auto" onclick="quitarInvitado('${esc(a.email)}')">quitar</button>`:""}</div>`).join("");
+}
+async function invitar(){
+  const email=($("ad-email").value||"").trim().toLowerCase();
+  if (!email.includes("@")) return aviso("Correo inválido.");
+  const {error} = await sb.from("amigos_permitidos").insert({email});
+  if (error) return aviso("No se pudo invitar: "+error.message);
+  $("ad-email").value=""; aviso("Invitado. Que se registre con ese correo."); cargarInvitados();
+}
+async function quitarInvitado(email){
+  if (!confirm(`¿Quitar a ${email} de la lista?`)) return;
+  await sb.from("amigos_permitidos").delete().eq("email", email); cargarInvitados();
+}
+
+init();
+</script>
+</body>
+</html>
