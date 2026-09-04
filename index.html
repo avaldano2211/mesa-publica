@@ -86,12 +86,33 @@ padding:10px 16px;border-radius:10px;font-size:13px;z-index:20;max-width:88vw}
   <div id="zona-datos" class="oculto">
 
   <div class="panel">
+    <h3>Mis tickers <span class="dim3" style="font-size:11px">máx 3 — Joel: tres empresas, y conócelas de memoria</span></h3>
+    <div class="fila" style="align-items:center">
+      <div id="ms-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <select id="ms-sel" style="min-width:170px"><option value="">＋ añadir ticker…</option></select>
+    </div>
+    <div class="dim3" id="ms-nota" style="font-size:11px;margin-top:6px">elige las empresas que TÚ trabajas — la mesa central las analiza para ti</div>
+  </div>
+
+  <div class="panel">
     <h3>El mercado hoy <span class="badge" id="mk-hora">—</span></h3>
     <div class="sub">análisis del sistema — la noticia mata la estrategia · rango óptimo por día de semana</div>
     <div id="mk-avisos"></div>
     <div class="grid" id="mk-tickers" style="margin-top:8px"></div>
     <div id="mk-bloque" style="margin-top:10px"></div>
     <div id="mk-senales" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Evalúa tu ticket <span class="dim3" style="font-size:11px">antes de comprar en tu bróker — las reglas del sistema contra TU contrato</span></h3>
+    <div class="fila">
+      <label>Ticker<select id="tk-sym" style="width:96px"></select></label>
+      <label>Prima ($/acción)<input id="tk-prima" type="number" step="0.01" style="width:96px" placeholder="0.38"></label>
+      <label>BID<input id="tk-bid" type="number" step="0.01" style="width:84px" placeholder="opcional"></label>
+      <label>ASK<input id="tk-ask" type="number" step="0.01" style="width:84px" placeholder="opcional"></label>
+      <button class="btn-a btn-sm" id="tk-eval">Evaluar</button>
+    </div>
+    <div id="tk-res" style="margin-top:8px"></div>
   </div>
 
   <div class="panel">
@@ -152,6 +173,9 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NIV = {ok:"var(--verde)", aviso:"var(--ambar)", alto:"var(--rojo)"};
 let sb = null, usuario = null, plan = {plan_pct:35, ops_max:3, riesgo_pct:10, capital:null}, esAdmin = false;
+let misTickers = ["SPY"], mercadoP = null, marcasHoy = {}, susCargada = false;
+const hoyISO = () => new Date().toLocaleDateString("sv-SE");
+const horaET = () => { const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",hour12:false}).formatToParts(new Date()); const h=+p.find(x=>x.type==="hour").value, m=+p.find(x=>x.type==="minute").value; return h*60+m; };
 
 function aviso(t){ const m=$("msg"); m.textContent=t; m.classList.remove("oculto");
   clearTimeout(aviso._t); aviso._t=setTimeout(()=>m.classList.add("oculto"), 3500); }
@@ -203,34 +227,90 @@ async function entrar(u){
   $("pl-guardar").onclick = guardarPlan;
   $("op-alta").onclick = altaOperacion;
   $("op-prima").addEventListener("input", pintaGTC);
-  await Promise.all([cargarPlan(), cargarMercado(), cargarOperaciones()]);
+  $("ms-sel").onchange = ()=>{ if($("ms-sel").value){ agregarTicker($("ms-sel").value); $("ms-sel").value=""; } };
+  $("tk-eval").onclick = evaluarTicket;
+  await Promise.all([cargarPlan(), cargarSuscripcion(), cargarMarcas()]);
+  await cargarMercado();
+  cargarOperaciones();
   setInterval(cargarMercado, 120000);
 }
 
+/* ── mis tickers (suscripción) ── */
+async function cargarSuscripcion(){
+  const {data} = await sb.from("suscripciones").select("tickers").eq("user_id", usuario.id).maybeSingle();
+  if (data && Array.isArray(data.tickers) && data.tickers.length) misTickers = data.tickers;
+  susCargada = true;
+}
+async function guardarSuscripcion(nota){
+  await sb.from("suscripciones").upsert({user_id:usuario.id, tickers:misTickers, ts:new Date().toISOString()}, {onConflict:"user_id"});
+  if (nota) $("ms-nota").innerHTML = nota;
+  renderMisTickers(); renderMercado();
+}
+function agregarTicker(t){
+  t = t.toUpperCase().trim();
+  if (misTickers.includes(t)) return;
+  if (misTickers.length >= 3) return aviso("Máximo 3 tickers — Joel: suelta una empresa antes de tomar otra.");
+  misTickers.push(t);
+  const ya = (mercadoP?.tickers||[]).some(x=>x.ticker===t);
+  guardarSuscripcion(ya ? "" : '⏳ <b>'+esc(t)+'</b> añadido: la mesa central lo analizará en su próximo ciclo (~5 min); su tarjeta aparecerá sola.');
+}
+function quitarTicker(t){
+  misTickers = misTickers.filter(x=>x!==t);
+  if (!misTickers.length) misTickers=["SPY"];
+  guardarSuscripcion("");
+}
+function renderMisTickers(){
+  $("ms-chips").innerHTML = misTickers.map(t=>
+    `<span class="badge" style="font-size:12px;display:inline-flex;gap:6px;align-items:center"><b>${esc(t)}</b>
+      <span style="cursor:pointer;color:var(--rojo)" onclick="quitarTicker('${esc(t)}')">✕</span></span>`).join("");
+  const cat = (mercadoP?.catalogo)||[];
+  $("ms-sel").innerHTML = '<option value="">＋ añadir ticker…</option>' +
+    cat.filter(c=>!misTickers.includes(c.ticker))
+       .map(c=>`<option value="${esc(c.ticker)}">${esc(c.ticker)}${c.nombre?" — "+esc(c.nombre):""}</option>`).join("");
+  $("tk-sym").innerHTML = misTickers.map(t=>`<option>${esc(t)}</option>`).join("");
+}
+
 /* ── mercado compartido ── */
+function bandaHoy(rv){
+  const terc=(rv.hi-rv.lo)/3, d=new Date().getDay();
+  return d<=2?[rv.lo,rv.lo+terc] : d===3?[rv.lo+terc,rv.hi-terc] : [rv.hi-terc,rv.hi];
+}
 async function cargarMercado(){
   const {data, error} = await sb.from("mercado_actual").select("ts,payload").eq("id",1).maybeSingle();
   if (error || !data){ $("mk-avisos").innerHTML = '<span class="dim3">todavía no hay datos publicados</span>'; return; }
-  const p = data.payload || {}; const ts = new Date(data.ts);
+  mercadoP = data.payload || {}; mercadoP._ts = data.ts;
+  renderMisTickers();
+  renderMercado();
+}
+function renderMercado(){
+  const p = mercadoP; if (!p) return;
+  const ts = new Date(p._ts);
   const mins = Math.round((Date.now()-ts.getTime())/60000);
   $("mk-hora").textContent = "actualizado " + ts.toLocaleTimeString("es",{hour:"2-digit",minute:"2-digit"});
   const hd=$("hd-mercado"); hd.textContent = mins>45 ? `datos de hace ${mins>120?Math.round(mins/60)+" h":mins+" min"}` : "mercado al día";
   hd.classList.toggle("viejo", mins>45);
   $("mk-avisos").innerHTML = (p.avisos_globales||[]).map(linea).join("")
     || linea({nivel:"ok", texto:"sin noticias que maten la estrategia hoy"});
-  $("mk-tickers").innerHTML = (p.tickers||[]).map(t=>{
+  const por = Object.fromEntries((p.tickers||[]).map(t=>[t.ticker,t]));
+  $("mk-tickers").innerHTML = misTickers.map(sym=>{
+    const t = por[sym];
+    if (!t) return `<div class="tk"><b>${esc(sym)}</b>
+      <div class="dim3" style="font-size:11.5px;margin-top:4px">⏳ la mesa central lo analiza en su próximo ciclo (~5 min) — la tarjeta aparecerá sola</div></div>`;
+    if (t.error) return `<div class="tk"><b>${esc(sym)}</b><div class="dim3" style="font-size:11px">${esc(t.error)}</div></div>`;
     const rv=t.rango_vivo; let cab="";
     if (rv){
-      const terc=(rv.hi-rv.lo)/3, d=new Date().getDay();
-      const b = d<=2?[rv.lo,rv.lo+terc] : d===3?[rv.lo+terc,rv.hi-terc] : [rv.hi-terc,rv.hi];
+      const b = bandaHoy(rv);
       cab = `<span class="dim" style="font-size:11.5px">rango vivo $${Math.round(rv.lo)}–$${Math.round(rv.hi)}
         · hoy $${Math.round(b[0])}–$${Math.round(b[1])}</span>`;
     }
+    const nm = Object.values(marcasHoy[sym]||{}).filter(v=>v==="si"||v==="no").length;
     return `<div class="tk"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(t.ticker)}</b>${cab}</div>
       <div style="font-size:12px;margin-top:4px">15m ${tend(t.tendencias?.m15)} · hora ${tend(t.tendencias?.hora)} · día ${tend(t.tendencias?.dia)}</div>
       <div class="dim" style="font-size:11.5px;margin-top:2px">volatilidad: <b>${esc(t.volatilidad?.fase||"—")}</b>${t.volatilidad?.rumbo?` (${esc(t.volatilidad.rumbo)})`:""}</div>
       ${(t.eventos||[]).map(linea).join("")}
-      ${(t.avisos||[]).map(a=>linea({nivel:"aviso",texto:a})).join("")}</div>`;
+      ${(t.avisos||[]).map(a=>linea({nivel:"aviso",texto:a})).join("")}
+      ${(t.form||[]).length?`<button class="btn-sm" style="margin-top:7px" onclick="toggleChecklist('${esc(sym)}')">📋 Checklist de entrada${nm?` (${nm}/8)`:""}</button>
+      <div id="ckp-${esc(sym)}" class="oculto" style="margin-top:6px"></div>`:""}</div>`;
   }).join("");
   const bl=p.bloque;
   $("mk-bloque").innerHTML = (bl && bl.estados) ?
@@ -243,6 +323,81 @@ async function cargarMercado(){
     `<div class="dim3" style="font-size:11px;margin-bottom:3px">SEÑALES DEL SISTEMA HOY</div>`+
     p.senales_hoy.map(s=>`<div class="linea"><span class="dim3">${esc(s.hhmm)}</span>
       <b>${esc(s.titulo)}</b></div><div class="dim" style="font-size:11.5px;margin:0 0 6px 40px">${esc(s.msg)}</div>`).join("") : "";
+}
+
+/* ── checklist oficial por ticker (marcas propias en Supabase) ── */
+async function cargarMarcas(){
+  const {data} = await sb.from("checklist_marcas").select("ticker,marcas").eq("fecha", hoyISO());
+  marcasHoy = {}; (data||[]).forEach(r=>marcasHoy[r.ticker]=r.marcas||{});
+}
+function toggleChecklist(sym){
+  const el = $("ckp-"+sym); if(!el) return;
+  el.classList.toggle("oculto");
+  if (!el.classList.contains("oculto")) renderFormPub(sym);
+}
+function renderFormPub(sym){
+  const el = $("ckp-"+sym); const t=(mercadoP?.tickers||[]).find(x=>x.ticker===sym);
+  if (!el || !t || !(t.form||[]).length) return;
+  const AUTO = {si:['la mesa dice: SE CUMPLE','var(--verde)'], no:['la mesa dice: NO SE CUMPLE','var(--rojo)'],
+                atencion:['revisa','var(--ambar)'], ticket:['se valida en «Evalúa tu ticket»','var(--tx3)']};
+  const marcas = marcasHoy[sym]||{};
+  el.innerHTML = t.form.map(it=>{
+    const a = it.auto ? AUTO[it.auto] : ['análisis tuyo','var(--tx3)'];
+    const m = marcas[String(it.n)];
+    return `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid #1a1a2c">
+      <span class="dim3" style="font-weight:700;width:14px;font-size:11px">${it.n}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11.5px"><b>${esc(it.titulo)}</b> <span style="font-size:9.5px;color:${a[1]}">${a[0]}</span></div>
+        <div class="dim" style="font-size:11px">${esc(it.detalle)}</div></div>
+      <div style="display:flex;gap:3px;flex-shrink:0">
+        <button class="btn-sm ${m==="si"?"btn-v":""}" style="padding:1px 8px;font-size:11px" onclick="marcarPub('${esc(sym)}',${it.n},'si')">SÍ</button>
+        <button class="btn-sm ${m==="no"?"btn-r":""}" style="padding:1px 8px;font-size:11px" onclick="marcarPub('${esc(sym)}',${it.n},'no')">NO</button>
+      </div></div>`;
+  }).join("") + (Object.values(marcas).some(v=>v==="no")
+    ? `<div class="red" style="font-size:11.5px;margin-top:4px"><b>hay puntos en NO — Joel dice: next, usa otra de tus empresas o el ETF</b></div>` : "");
+}
+async function marcarPub(sym, n, v){
+  const m = {...(marcasHoy[sym]||{})};
+  m[String(n)] = (m[String(n)]===v) ? null : v;
+  marcasHoy[sym]=m;
+  renderFormPub(sym);
+  const {error} = await sb.from("checklist_marcas").upsert(
+    {user_id:usuario.id, fecha:hoyISO(), ticker:sym, marcas:m, ts:new Date().toISOString()},
+    {onConflict:"user_id,fecha,ticker"});
+  if (error) aviso("No se guardó la marca: "+error.message);
+}
+
+/* ── evalúa tu ticket (reglas del sistema, en tu navegador) ── */
+function evaluarTicket(){
+  const sym=$("tk-sym").value, prima=+$("tk-prima").value, bid=+$("tk-bid").value, ask=+$("tk-ask").value;
+  const t=(mercadoP?.tickers||[]).find(x=>x.ticker===sym);
+  const checks=[];
+  if (!sym || !(prima>0)) return $("tk-res").innerHTML=linea({nivel:"aviso",texto:"elige ticker y escribe la prima"});
+  if (!t) checks.push({nivel:"aviso",texto:"sin análisis de este ticker todavía (llega en el próximo ciclo)"});
+  const pc = prima*100;
+  if (t?.rango_vivo){
+    const rv=t.rango_vivo, b=bandaHoy(rv);
+    checks.push(rv.lo<=pc&&pc<=rv.hi ? {nivel:"ok",texto:`prima $${pc.toFixed(0)} dentro del rango vivo ($${Math.round(rv.lo)}–$${Math.round(rv.hi)})`}
+      : (rv.lo*0.85<=pc&&pc<=rv.hi*1.15 ? {nivel:"aviso",texto:`prima $${pc.toFixed(0)} al borde del rango vivo ($${Math.round(rv.lo)}–$${Math.round(rv.hi)})`}
+      : {nivel:"alto",texto:`prima $${pc.toFixed(0)} FUERA del rango vivo ($${Math.round(rv.lo)}–$${Math.round(rv.hi)})`}));
+    checks.push(b[0]<=pc&&pc<=b[1] ? {nivel:"ok",texto:`dentro de la banda de hoy ($${Math.round(b[0])}–$${Math.round(b[1])})`}
+      : {nivel:"aviso",texto:`la banda de hoy es $${Math.round(b[0])}–$${Math.round(b[1])} y tu prima cae fuera`});
+  }
+  if (bid>0 && ask>bid){
+    const sp=(ask-bid)/((ask+bid)/2)*100;
+    checks.push({nivel: sp<=10?"ok":"alto", texto:`spread ${sp.toFixed(1)}%`+(sp<=10?"":" — más del 10%: ese peaje se paga dos veces")});
+  }
+  if (horaET() < 630) checks.push({nivel:"aviso",texto:"antes de las 10:30 ET solo estrategias de apertura; el resto espera"});
+  (t?.eventos||[]).forEach(e=>checks.push(e));
+  (mercadoP?.avisos_globales||[]).forEach(e=>checks.push(e));
+  const lunes=lunesDe(new Date());
+  const ops=opsCache.filter(o=>o.fecha>=lunes).length;
+  checks.push(ops<plan.ops_max ? {nivel:"ok",texto:`operación ${ops+1} de ${plan.ops_max} de tu semana`}
+    : {nivel:"alto",texto:`tu plan semanal está AGOTADO (${ops}/${plan.ops_max}) — el excedente es del casino, no tuyo`});
+  checks.push({nivel:"ok",texto:`al llenarte, pon YA la venta GTC límite a $${(prima*(1+plan.plan_pct/100)+0.02).toFixed(2)} (+${plan.plan_pct}% + $0.02)`});
+  const peor = checks.some(c=>c.nivel==="alto")?"alto":checks.some(c=>c.nivel==="aviso")?"aviso":"ok";
+  $("tk-res").innerHTML = `<div style="padding:8px 10px;border:1px solid ${NIV[peor]}44;border-left:3px solid ${NIV[peor]};border-radius:8px">
+    ${checks.map(linea).join("")}</div>`;
 }
 
 /* ── plan + semana ── */
