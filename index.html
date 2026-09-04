@@ -148,12 +148,18 @@ padding:10px 16px;border-radius:10px;font-size:13px;z-index:20;max-width:88vw}
     <h3>🖥️ Tu mesa completa <span class="dim3" style="font-size:11px">Nivel 2 — para hablar en serio</span></h3>
     <div class="sub">greeks en vivo con TUS datos, order flow, market profile, señales del sistema y ejecución con TU bróker — instalada en tu Mac, con tus propias cuentas. Aquí en la web ves el análisis de la mesa central; con la tuya, lo ves todo con tus ojos.</div>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn-a" id="n2-descargar">⬇︎ Descargar Mesa (Mac)</button>
+      <button class="btn-a" id="n2-comando">📋 Copiar comando de instalación</button>
       <span class="dim3" id="n2-version" style="font-size:11px"></span>
     </div>
-    <div class="dim" style="font-size:12px;margin-top:8px;line-height:1.7">
-      1. Descomprime el zip · 2. Doble clic a <b>Instalar.command</b> · 3. Cuenta de moomoo + su conector gratuito <b>OpenD</b> · 4. Doble clic a <b>Mesa.command</b> y a operar.<br>
-      El paso a paso completo viene en el <b>README_AMIGOS</b> dentro del zip. Tus credenciales viven SOLO en tu computadora — nadie más las ve, nunca.
+    <div class="dim" style="font-size:12px;margin-top:8px;line-height:1.8">
+      <b>Así de simple (sin avisos de seguridad de Apple):</b><br>
+      1. Pulsa el botón de arriba (copia un comando; vale por 1 hora).<br>
+      2. Abre la app <b>Terminal</b> de tu Mac (Cmd+Espacio, escribe «Terminal», Enter).<br>
+      3. <b>Pega</b> (Cmd+V) y dale <b>Enter</b> — la mesa se instala sola y arranca su asistente.<br>
+      Después solo necesitas tu cuenta de <b>moomoo</b> con su conector gratuito <b>OpenD</b>, y encenderla con doble clic a <b>Mesa.command</b>. Tus credenciales viven SOLO en tu computadora.
+    </div>
+    <div class="dim3" style="font-size:11px;margin-top:8px">
+      ¿Prefieres el zip? <a href="#" id="n2-descargar" style="color:var(--azul)">Descárgalo aquí</a> — pero al abrir <b>Instalar.command</b> macOS lo bloqueará («Apple could not verify»): dale Done y luego Ajustes del Sistema → Privacidad y seguridad → <b>Abrir de todos modos</b>. Por eso el comando de arriba es el camino fácil.
     </div>
   </div>
 
@@ -249,14 +255,28 @@ async function entrar(u){
   setInterval(cargarMercado, 120000);
 }
 
-/* ── nivel 2: descarga de la mesa completa (Storage privado) ── */
+/* ── nivel 2: instalación de la mesa completa (Storage privado) ── */
 async function cargarNivel2(){
   try{
     const {data} = await sb.storage.from("descargas").download("version.txt");
     if (data) $("n2-version").textContent = "versión " + (await data.text());
   }catch(e){}
-  $("n2-descargar").onclick = async ()=>{
-    const b=$("n2-descargar"); b.disabled=true; b.textContent="descargando…";
+  $("n2-comando").onclick = async ()=>{
+    const b=$("n2-comando"); b.disabled=true; b.textContent="generando…";
+    try{
+      // enlaces firmados temporales (1 h): curl no pasa por Gatekeeper,
+      // así que no hay «Apple could not verify» — instalación sin sustos
+      const sh = await sb.storage.from("descargas").createSignedUrl("instalar.sh", 3600);
+      const zp = await sb.storage.from("descargas").createSignedUrl("mesa-amigos.zip", 3600);
+      if (sh.error || zp.error) throw (sh.error||zp.error);
+      const cmd = `curl -fsSL '${sh.data.signedUrl}' | bash -s -- '${zp.data.signedUrl}'`;
+      try{ await navigator.clipboard.writeText(cmd); aviso("Comando copiado ✓ — abre Terminal, pega y Enter."); }
+      catch(e){ prompt("Cópialo a mano (Cmd+C) y pégalo en Terminal:", cmd); }
+    }catch(e){ aviso("No se pudo generar: "+(e.message||e)); }
+    b.disabled=false; b.textContent="📋 Copiar comando de instalación";
+  };
+  $("n2-descargar").onclick = async (ev)=>{
+    ev.preventDefault();
     try{
       const {data, error} = await sb.storage.from("descargas").download("mesa-amigos.zip");
       if (error) throw error;
@@ -265,7 +285,6 @@ async function cargarNivel2(){
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(u), 30000);
     }catch(e){ aviso("No se pudo descargar: "+(e.message||e)); }
-    b.disabled=false; b.textContent="⬇︎ Descargar Mesa (Mac)";
   };
 }
 
