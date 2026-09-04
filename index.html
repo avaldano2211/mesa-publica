@@ -144,6 +144,19 @@ padding:10px 16px;border-radius:10px;font-size:13px;z-index:20;max-width:88vw}
     <div style="overflow-x:auto;margin-top:10px"><table id="op-tabla"></table></div>
   </div>
 
+  <div class="panel">
+    <h3>🖥️ Tu mesa completa <span class="dim3" style="font-size:11px">Nivel 2 — para hablar en serio</span></h3>
+    <div class="sub">greeks en vivo con TUS datos, order flow, market profile, señales del sistema y ejecución con TU bróker — instalada en tu Mac, con tus propias cuentas. Aquí en la web ves el análisis de la mesa central; con la tuya, lo ves todo con tus ojos.</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn-a" id="n2-descargar">⬇︎ Descargar Mesa (Mac)</button>
+      <span class="dim3" id="n2-version" style="font-size:11px"></span>
+    </div>
+    <div class="dim" style="font-size:12px;margin-top:8px;line-height:1.7">
+      1. Descomprime el zip · 2. Doble clic a <b>Instalar.command</b> · 3. Cuenta de moomoo + su conector gratuito <b>OpenD</b> · 4. Doble clic a <b>Mesa.command</b> y a operar.<br>
+      El paso a paso completo viene en el <b>README_AMIGOS</b> dentro del zip. Tus credenciales viven SOLO en tu computadora — nadie más las ve, nunca.
+    </div>
+  </div>
+
   <div class="panel oculto" id="p-admin">
     <h3>Invitados <span class="dim3" style="font-size:11px">(solo tú ves esto)</span></h3>
     <div class="fila">
@@ -232,7 +245,28 @@ async function entrar(u){
   await Promise.all([cargarPlan(), cargarSuscripcion(), cargarMarcas()]);
   await cargarMercado();
   cargarOperaciones();
+  cargarNivel2();
   setInterval(cargarMercado, 120000);
+}
+
+/* ── nivel 2: descarga de la mesa completa (Storage privado) ── */
+async function cargarNivel2(){
+  try{
+    const {data} = await sb.storage.from("descargas").download("version.txt");
+    if (data) $("n2-version").textContent = "versión " + (await data.text());
+  }catch(e){}
+  $("n2-descargar").onclick = async ()=>{
+    const b=$("n2-descargar"); b.disabled=true; b.textContent="descargando…";
+    try{
+      const {data, error} = await sb.storage.from("descargas").download("mesa-amigos.zip");
+      if (error) throw error;
+      const u = URL.createObjectURL(data);
+      const a = document.createElement("a"); a.href=u; a.download="mesa-amigos.zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u), 30000);
+    }catch(e){ aviso("No se pudo descargar: "+(e.message||e)); }
+    b.disabled=false; b.textContent="⬇︎ Descargar Mesa (Mac)";
+  };
 }
 
 /* ── mis tickers (suscripción) ── */
@@ -304,9 +338,11 @@ function renderMercado(){
         · hoy $${Math.round(b[0])}–$${Math.round(b[1])}</span>`;
     }
     const nm = Object.values(marcasHoy[sym]||{}).filter(v=>v==="si"||v==="no").length;
+    const gk = t.greeks ? `<div class="dim" style="font-size:11px;margin-top:2px">Γ muro calls <b>${t.greeks.call_wall??"—"}</b> · muro puts <b>${t.greeks.put_wall??"—"}</b> · flip <b>${t.greeks.flip??"—"}</b> · max pain <b>${t.greeks.max_pain??"—"}</b> · IV ${t.greeks.iv_atm??"—"}% · gamma ${t.greeks.gamma_score??"—"}/100</div>` : "";
     return `<div class="tk"><div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><b>${esc(t.ticker)}</b>${cab}</div>
       <div style="font-size:12px;margin-top:4px">15m ${tend(t.tendencias?.m15)} · hora ${tend(t.tendencias?.hora)} · día ${tend(t.tendencias?.dia)}</div>
       <div class="dim" style="font-size:11.5px;margin-top:2px">volatilidad: <b>${esc(t.volatilidad?.fase||"—")}</b>${t.volatilidad?.rumbo?` (${esc(t.volatilidad.rumbo)})`:""}</div>
+      ${gk}
       ${(t.eventos||[]).map(linea).join("")}
       ${(t.avisos||[]).map(a=>linea({nivel:"aviso",texto:a})).join("")}
       ${(t.form||[]).length?`<button class="btn-sm" style="margin-top:7px" onclick="toggleChecklist('${esc(sym)}')">📋 Checklist de entrada${nm?` (${nm}/8)`:""}</button>
